@@ -1,0 +1,7 @@
+**/node_modules
+.idea
+.nuxt
+**/.DS_Store
+**/dist
+config.js
+db.json

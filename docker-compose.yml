@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+  status-monitor:
+    build: .
+    container_name: status-monitor
+    volumes:
+      - ./config.js:/usr/src/app/config.js:ro
+      - ./db.json:/usr/src/app/db.json
