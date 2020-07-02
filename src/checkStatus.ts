@@ -26,7 +26,8 @@ export async function checkStatus (
     }
 
     const endpointStatus = await checkEndpoint(endpoint)
-    await parseEndpointStatus(endpoint, endpointStatus, webhook, statusLog, time)
+    const message = parseEndpointStatus(endpoint, endpointStatus, statusLog, time)
+    message && await webhook.send(message)
 
     statusLog[endpoint.id].push({
       time,
@@ -39,48 +40,48 @@ export async function checkStatus (
   return statusLog
 }
 
-async function parseEndpointStatus (
+export function parseEndpointStatus (
   endpoint: Endpoint,
   endpointStatus: EndpointStatus,
-  webhook: IncomingWebhook,
   statusLog: StatusLog,
   time = +new Date()
 ) {
-  const onDown = async () => {
-    const wasOnline = statusLog[endpoint.id].length
-      ? _.last(statusLog[endpoint.id]).status === 200
+  const endpointLogs = statusLog[endpoint.id]
+
+  const onDown = () => {
+    const wasOnline = endpointLogs.length
+      ? _.last(endpointLogs).status === 200
       : true
 
     if (wasOnline) {
-      const lastOnline = statusLog[endpoint.id].find(x => {
+      const lastOnline = _.findLast(endpointLogs, (x => {
         return x.status !== 200
-      }) || { time }
+      })) || { time }
 
-      const message = `
+      return `
         :x: *${endpoint.name}* is DOWN since ${format(lastOnline.time, 'HH:mm:ss')} \n${endpoint.url}\n${endpointStatus.status} - ${endpointStatus.statusText} - ${endpointStatus.duration}`
-
-      await webhook.send(message)
     }
+
+    return null
   }
 
-  const onUp = async () => {
-    const wasDown = statusLog[endpoint.id].length
-      ? _.last(statusLog[endpoint.id]).status !== 200
+  const onUp = () => {
+    const wasDown = endpointLogs.length
+      ? _.last(endpointLogs).status !== 200
       : false
 
     if (wasDown) {
-      const lastUp = _.last(statusLog[endpoint.id].filter(x => x.status === 200)) || { time }
+      const lastUp = _.findLast(endpointLogs, x =>  x.status === 200) || { time }
 
-      const message = `
+      return `
 :white_check_mark: ${endpoint.name} is UP
-${endpoint.url}
 Was down from ${format(lastUp.time, 'HH:mm:ss')} for *${formatDistance(time, lastUp.time)}*
 ${endpoint.url}
 response time: ${endpointStatus.duration}
 `
-
-      await webhook.send(message)
     }
+
+    return null
   }
 
   return endpointStatus.status !== 200
@@ -88,12 +89,18 @@ response time: ${endpointStatus.duration}
     : onUp()
 }
 
-async function checkEndpoint ({ url }: Endpoint): Promise<EndpointStatus> {
+export async function checkEndpoint ({ url }: Endpoint): Promise<EndpointStatus> {
   const {
     status,
     statusText,
     duration
-  } = await axios(url).catch(e => e.response)
+  } = await axios(url).catch(e => {
+    return e.response || {
+      status: 0,
+      statusText: e.message,
+      duration: 0
+    }
+  })
 
   return {
     status,

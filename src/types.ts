@@ -23,7 +23,7 @@ export type MonitorConfig = {
   logRetention: number
   endpoints: Endpoint[]
   notifiers: {
-    type: 'slack'
+    type: string
     channel: string
     webhook: string
   }[]
