@@ -64,16 +64,6 @@ async function parseEndpointStatus (
   }
 
   const onUp = async () => {
-    if (!statusLog[endpoint.id].length) {
-      const message = `
-:white_check_mark: ${endpoint.name} is UP
-response time: ${endpointStatus.duration}
-`
-
-      await webhook.send(message)
-      return
-    }
-
     const wasDown = statusLog[endpoint.id].length
       ? _.last(statusLog[endpoint.id]).status !== 200
       : false
@@ -83,6 +73,7 @@ response time: ${endpointStatus.duration}
 
       const message = `
 :white_check_mark: ${endpoint.name} is UP
+${endpoint.url}
 Was down from ${format(lastUp.time, 'HH:mm:ss')} for *${formatDistance(time, lastUp.time)}*
 ${endpoint.url}
 response time: ${endpointStatus.duration}

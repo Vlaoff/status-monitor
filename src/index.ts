@@ -5,6 +5,7 @@ import low from 'lowdb'
 import FileSync from 'lowdb/adapters/FileSync'
 import { StatusLog, MonitorConfig } from '@/types'
 import { checkStatus } from '@/checkStatus'
+import { IncomingWebhook } from '@slack/webhook'
 const adapter = new FileSync('db.json')
 const db = low(adapter)
 
@@ -28,6 +29,10 @@ async function initMonitor () {
 
   db.defaults({ statusLog: {} })
     .write()
+
+  const webhook = new IncomingWebhook(config.notifiers[0].webhook)
+
+  await webhook.send(`:chart: monitoring: ${config.endpoints.map(x => x.name).join(', ')}`)
 
   const statusLog = db.get('statusLog').value()
 
