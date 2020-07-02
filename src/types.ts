@@ -20,7 +20,6 @@ export type EndpointStatus = {
 
 export type MonitorConfig = {
   interval: number
-  // in days
   logRetention: number
   endpoints: Endpoint[]
   notifiers: {
