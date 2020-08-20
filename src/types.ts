@@ -9,6 +9,7 @@ export type LogItem = EndpointStatus & {
 export type Endpoint = {
   id: string
   name: string
+  namespace: string
   url: string
 }
 
@@ -22,9 +23,11 @@ export type MonitorConfig = {
   interval: number
   logRetention: number
   endpoints: Endpoint[]
+  LOGDNA_KEY?: string
   notifiers: {
     type: string
-    channel: string
-    webhook: string
+    channel?: string
+    webhook?: string
+    to?: string
   }[]
 }

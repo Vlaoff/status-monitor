@@ -25,7 +25,10 @@
     "axios": "^0.19.2",
     "date-fns": "^2.14.0",
     "lodash": "^4.17.15",
-    "lowdb": "^1.0.0"
+    "logdna": "^3.5.1",
+    "lowdb": "^1.0.0",
+    "pino": "^6.5.1",
+    "zulip-js": "^2.0.8"
   },
   "devDependencies": {
     "@babel/core": "^7.10.4",

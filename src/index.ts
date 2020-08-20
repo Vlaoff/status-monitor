@@ -6,11 +6,16 @@ import FileSync from 'lowdb/adapters/FileSync'
 import { StatusLog, MonitorConfig } from '@/types'
 import { checkStatus } from '@/checkStatus'
 import { IncomingWebhook } from '@slack/webhook'
+import pino from 'pino'
+import logdna from 'logdna'
+import { getZulipClient, sendMessage } from '@/zulip'
+
 const adapter = new FileSync('db.json')
 const db = low(adapter)
 
 let timeout = null
 const configFilePath = path.resolve('./config.js')
+let logger = console
 
 initMonitor()
 
@@ -21,23 +26,68 @@ fs.watch(configFilePath, () => {
 
 async function initMonitor () {
   clearTimeout(timeout)
-  console.log('launching monitor with new config')
+
   const config: MonitorConfig = require(configFilePath)
 
-  console.log(`monitoring: ${config.endpoints.map(x => x.name).join(', ')}`)
-  console.log(`notifying: ${config.notifiers.map(x => x.channel).join(', ')}`)
+  if (config.LOGDNA_KEY) {
+    const logdnaLogger = config.LOGDNA_KEY && logdna.createLogger(config.LOGDNA_KEY, {
+      env: 'production',
+      app: 'status-monitor'
+    })
+
+    const logdnaTransport = {
+      write (msg: string) {
+        if (!config.LOGDNA_KEY) {
+          return
+        }
+        logdnaLogger && logdnaLogger.log(msg)
+      }
+    }
+
+    logger = pino({}, logdnaTransport)
+  }
+
+  logger.info('launching monitor with new config')
+
+  logger.info(`monitoring: ${config.endpoints.map(x => x.name).join(', ')}`)
+  logger.info(`notifying: ${config.notifiers.map(x => x.type).join(', ')}`)
 
   db.defaults({ statusLog: {} })
     .write()
 
-  const webhook = new IncomingWebhook(config.notifiers[0].webhook)
+  const slackNotifier = config.notifiers.find(x => x.type === 'slack')
+  const zulipNotifier = config.notifiers.find(x => x.type === 'zulip')
 
-  await webhook.send(`:chart: monitoring: ${config.endpoints.map(x => x.name).join(', ')}`)
+  const getSendMessage = async () => {
+    const webhook = slackNotifier
+      ? new IncomingWebhook(config.notifiers[0].webhook)
+      : null
+
+    const zulipClient = zulipNotifier
+      ? await getZulipClient()
+      : null
+
+
+    return async (content, topic?) => {
+      webhook && await webhook.send(content)
+      zulipClient && await sendMessage(zulipClient, {
+        to: zulipNotifier.to,
+        type: 'stream',
+        topic,
+        content
+      })
+    }
+  }
+
+  const messageSender = await getSendMessage()
+
+  await messageSender(`:chart: monitoring: ${config.endpoints.map(x => x.name).join(', ')}`, 'logs')
 
   const statusLog = db.get('statusLog').value()
 
   const monitor = async (statusLog) => {
-    return checkStatus(config, statusLog).then((statusLog) => {
+    return checkStatus(config, statusLog, messageSender, logger).then((statusLog) => {
+      logger.info('monitoring job completed')
       db.set('statusLog', filterLogs(statusLog, config)).write()
 
       timeout = setTimeout(() => {
